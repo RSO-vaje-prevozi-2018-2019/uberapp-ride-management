@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ride-management
+  template:
+    metadata:
+      labels:
+        app: ride-management
+    spec:
+      containers:
+      - image: glumac/uberapp-ride-management:0.1
+        name: review
+        imagePullPolicy: "Always"
+        env:
+          - name: KUMULUZEE_DISCOVERY_CLUSTER
+            value: bluemix
+          - name: KUMULUZEE_DISCOVERY_ETCD_HOSTS
+            value: http://etcd:2379
+          - name: KUMULUZEE_CONFIG_ETCD_HOSTS
+            value: http://etcd:2379
+        ports:
+        - containerPort: 8084
+          name: server
+          protocol: TCP
+
