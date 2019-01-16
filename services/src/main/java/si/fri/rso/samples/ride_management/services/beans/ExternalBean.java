@@ -4,13 +4,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kumuluz.ee.discovery.annotations.DiscoverService;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import si.fri.rso.samples.ride_management.models.dtos.Notification;
+import si.fri.rso.samples.ride_management.models.dtos.PickupPoint;
+import si.fri.rso.samples.ride_management.models.dtos.Ride;
 import si.fri.rso.samples.ride_management.models.dtos.User;
 
 import javax.annotation.PostConstruct;
@@ -20,6 +25,7 @@ import javax.json.Json;
 import javax.json.JsonObject;
 import javax.ws.rs.InternalServerErrorException;
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,108 +36,81 @@ public class ExternalBean {
 
     private ObjectMapper objectMapper;
 
+    private static final String RAPID_API_KEY = "53843e26f3msh519f666d6bbc58fp1ae853jsn8330a2192e68";
+
     @PostConstruct
     private void init() {
         objectMapper = new ObjectMapper();
     }
 
-    @Inject
-    @DiscoverService(value = "uberapp-notifications")
-    private Optional<String> basePathNotifications;
-
+//    @Inject
+//    @DiscoverService(value = "uberapp-notifications")
+//    private Optional<String> basePathNotifications;
+//
     @Inject
     @DiscoverService(value = "uberapp-rides")
     private Optional<String> basePathRides;
 
-    public List<User> getUsersFromRide(int rideId) {
-
-        //hardcoded - todo
-        List<User> users = new ArrayList<>();
-        for(int i=0;i<100;i++) {
-            users.add(new User(i));
-        }
-        return users;
-    }
-
-    public int getDriverId(int rideId) {
+    public Ride getRide(int rideId) {
 
         String url = "";
         if (basePathRides.isPresent()) {
-            url = basePathRides.get() + "/v1/rides/"+ rideId +"/driver";
+            url = basePathRides.get() + "/v1/rides/"+ rideId;
         } else {
             throw new InternalServerErrorException("ni urlja");
         }
         System.out.println("url je podan, celoten: " + url);
-        String json = getJSONResponse("GET", url);
+        String json = getJSONResponse(url, new ArrayList<>());
 
         System.out.println("dobljeni json" + json);
 
-        Integer driverId = null;
+        Ride drive = null;
         try {
             ObjectMapper mapper = new ObjectMapper();
-            driverId = mapper.readValue(json, Integer.class);
+            drive = mapper.readValue(json, Ride.class);
         } catch (IOException e) {
             //logiranje
-            System.out.println("request: getDriverId, error: " + e);
+            System.out.println("request: getRide, error: " + e);
         }
-        System.out.println("vračam driverID: " + driverId);
-        return driverId;
+        System.out.println("vračam driv: " + drive);
+        return drive;
+
     }
 
-    public boolean createNotification(int userId, int rideId, String text){
+    public PickupPoint getClosestCity(double latitude, double longitude){
 
-        JsonObject json = Json.createObjectBuilder()
-                .add("userid", String.valueOf(userId))
-                .add("notificationtext", text)
-                .add("rideid", String.valueOf(rideId))
-                .build();
+        String url = "https://geocodeapi.p.rapidapi.com/GetNearestCities";
+        List<NameValuePair> params = new ArrayList<>();
+        params.add(new BasicNameValuePair("latitude", Double.toString(latitude)));
+        params.add(new BasicNameValuePair("longitude", Double.toString(longitude)));
+        params.add(new BasicNameValuePair("range", "0"));
+        String json = getJSONResponse(url ,params);
 
-        String url = "";
-        if (basePathNotifications.isPresent()) {
-            url = basePathNotifications.get() + "/v1/notifications/create";
-        }
-        String jsonStringResponse = getJSONResponse("POST", url, json.toString());
-
-        System.out.println("dobljeni json createNotif; " + json);
-        Notification notification = null;
+        List<PickupPoint> cities = new ArrayList<>();
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            notification = mapper.readValue(jsonStringResponse, Notification.class);
-        } catch (IOException e) {
-            //logiranje
-            System.out.println("request: createNotif, error: " + e);
+//            cities = objectMapper.readValue(json, PickupPoint.class);
+            cities = objectMapper.readValue(json, objectMapper.getTypeFactory().constructCollectionType(List.class, PickupPoint.class));
+        } catch (Exception e) {
+            System.out.println(e);
         }
 
-        return (notification != null && notification.getId() != null);
-
+        if (cities.size() >= 1) {
+            return cities.get(0);
+        } else {
+            return new PickupPoint();
+        }
     }
 
-    private static String getJSONResponse(String requestType, String fullUrl) {
-        return getJSONResponse( requestType,  fullUrl, null);
-    }
-
-    private static String getJSONResponse(String requestType, String fullUrl, String json) {
+    private static String getJSONResponse(String fullUrl, List<NameValuePair> params) {
         try {
 
             HttpClient httpClient = HttpClientBuilder.create().build();
-            HttpResponse response = null;
-
-            if ("GET".equals(requestType)) {
-                HttpGet request = new HttpGet(fullUrl);
-                response = httpClient.execute(request);
-
-            } else if ("POST".equals(requestType)) {
-                HttpPost request = new HttpPost(fullUrl);
-
-                request.setEntity(new StringEntity(json));
-                request.setHeader("Content-type", "application/json");
-                request.setHeader("Accept", "application/json");
-
-                response = httpClient.execute(request);
-
-            } else {
-                throw new InternalServerErrorException("Wrong request type:" + requestType);
-            }
+            URIBuilder builder = new URIBuilder(fullUrl);
+            builder.setParameters(params);
+            URI uri = builder.build();
+            HttpGet request = new HttpGet(uri);
+            request.setHeader("X-RapidAPI-Key", RAPID_API_KEY );
+            HttpResponse  response = httpClient.execute(request);
 
             int status = response.getStatusLine().getStatusCode();
             System.out.println("response code: " + status);
@@ -146,7 +125,7 @@ public class ExternalBean {
                 throw new InternalServerErrorException(msg);
             }
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             String msg = e.getClass().getName() + " occured: " + e.getMessage();
             // todo logging
             System.out.println(msg);

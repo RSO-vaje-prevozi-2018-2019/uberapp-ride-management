@@ -1,6 +1,10 @@
 package si.fri.rso.samples.ride_management.api.v1.resources;
 
+import com.kumuluz.ee.configuration.cdi.ConfigValue;
 import com.kumuluz.ee.logs.cdi.Log;
+import si.fri.rso.samples.ride_management.models.dtos.PickupPoint;
+import si.fri.rso.samples.ride_management.models.dtos.Ride;
+import si.fri.rso.samples.ride_management.services.beans.ExternalBean;
 import si.fri.rso.samples.ride_management.services.beans.RideManagementBean;
 import si.fri.rso.samples.ride_management.services.configuration.AppProperties;
 
@@ -11,6 +15,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -32,13 +37,42 @@ public class RideManagementResource {
     @Context
     protected UriInfo uriInfo;
 
+    @Inject
+    private ExternalBean externalBean;
+
+
     @GET
+    @Path("hardcode")
     public Response test() {
 
-//        List<Review> reviews = rideManagementBean.getRideManagement();
-//
-        return Response.ok().build();
+        PickupPoint point = externalBean.getClosestCity(46.148822, 14.986707);
+
+        return Response.ok().entity(point).build();
     }
+
+    @GET
+    @Path("findClosestCity/{lat}/{lon}")
+    public Response findClosestCity(@PathParam("lat") BigDecimal lat, @PathParam("lon") BigDecimal lon) {
+
+        PickupPoint point = externalBean.getClosestCity(lat.doubleValue(), lon.doubleValue());
+
+        return Response.ok().entity(point).build();
+    }
+
+    @GET
+    @Path("findClosestCityRide/{rideId}")
+    public Response findClosestCityRide(@PathParam("rideId") Integer rideId) {
+
+//        List<Review> reviews = rideManagementBean.getRideManagement();
+
+        Ride ride = externalBean.getRide(rideId);
+        double latitude = ride.getInitialLatitute();
+        double longitude = ride.getInitialLongitude();
+        PickupPoint point = externalBean.getClosestCity(latitude, longitude);
+//
+        return Response.ok().entity(point).build();
+    }
+
 
     @GET
     @Path("/{reviewId}")
