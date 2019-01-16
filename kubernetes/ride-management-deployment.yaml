@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: review-deployment
+  name: ride-management-deployment
 spec:
   replicas: 1
   selector:
@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - image: glumac/uberapp-ride-management:0.1
-        name: review
+        name: ride-management
         imagePullPolicy: "Always"
         env:
           - name: KUMULUZEE_DISCOVERY_CLUSTER
